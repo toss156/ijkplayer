@@ -127,13 +127,21 @@ int64_t get_valid_channel_layout(int64_t channel_layout, int channels)
 
 static void free_picture(Frame *vp);
 
-//add by feng for [download speed]
-static void flush_speed(void *ffp, int64_t bytes, int64_t elapsed_milli)
+static void calc_buffer_speed(FFPlayer *ffp, int len)
 {
-    FFPlayer *lffp = (FFPlayer *)ffp;
-    if(lffp != NULL)
-       ffp_notify_msg3(lffp, FFP_MSG_BUFFERING_SPEED, bytes, elapsed_milli);
-//    ALOGE("realtime calc net speed:%f",speed);
+    int64_t elapsed_micro = av_gettime() - ffp->last_calc_time;
+    
+    ffp->lastsec_recv_bytesize += len;
+    ffp->total_recv_bytesize += len;
+    
+    if (elapsed_micro >= 1000000) {
+        // handle speed msg
+        if (ffp) {
+            ffp_notify_msg3(ffp, FFP_MSG_BUFFERING_SPEED, (int)ffp->lastsec_recv_bytesize, (int)elapsed_micro/1000.0);
+        }
+        ffp->lastsec_recv_bytesize = 0;
+        ffp->last_calc_time = av_gettime();
+    }
 }
 
 static int packet_queue_put_private(PacketQueue *q, AVPacket *pkt)
@@ -2466,12 +2474,6 @@ static int read_thread(void *arg)
     }
     is->ic = ic;
     
-    //add by feng for [download speed]
-    if (ic->pb){
-        ic->pb->flush_speed = flush_speed;
-        ic->pb->ffp_opaque = ffp;
-    }
-
     if (ffp->genpts)
         ic->flags |= AVFMT_FLAG_GENPTS;
 
@@ -2806,6 +2808,8 @@ static int read_thread(void *arg)
         }
         pkt->flags = 0;
         ret = av_read_frame(ic, pkt);
+        calc_buffer_speed(ffp, pkt->size);
+        
         if (ret < 0) {
             int pb_eof = 0;
             int pb_error = 0;

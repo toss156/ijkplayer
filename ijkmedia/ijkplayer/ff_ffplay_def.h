@@ -596,6 +596,10 @@ typedef struct FFPlayer {
     MessageQueue msg_queue;
 
     int64_t playable_duration_ms;
+    
+    int64_t total_recv_bytesize;
+    int64_t lastsec_recv_bytesize;
+    int64_t last_calc_time;
 
     int packet_buffering;
     int pictq_size;
@@ -707,7 +711,10 @@ inline static void ffp_reset_internal(FFPlayer *ffp)
     ffp->sync_av_start          = 1;
 
     ffp->playable_duration_ms           = 0;
-
+    ffp->total_recv_bytesize            = 0;
+    ffp->lastsec_recv_bytesize          = 0;
+    ffp->last_calc_time                 = av_gettime();
+    
     ffp->packet_buffering               = 1;
     ffp->pictq_size                     = VIDEO_PICTURE_QUEUE_SIZE_DEFAULT; // option
     ffp->max_fps                        = 31; // option
